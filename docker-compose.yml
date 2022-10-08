@@ -1,0 +1,13 @@
+# TODO: add container for extracting data from kindle to db
+
+services:
+  db:
+    container_name: kindle_db
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: kindle_db
+    ports:
+      - 5432:5432
