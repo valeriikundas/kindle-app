@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 const FolderToCloneTo string = "files"
@@ -25,6 +28,29 @@ func main() {
 		cloneKindleFilesToLocalStorage()
 	}
 
+	db := connectToDb()
+	migrateDb(db)
+
+	notedItems := parseHighlightsFile()
+	loadHighlightsToDatabase(db, notedItems)
+}
+
+func connectToDb() *gorm.DB {
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN: "host=0.0.0.0 port=5432 user=postgres password=pass dbname=kindle_db",
+	}), &gorm.Config{})
+
+	if err != nil {
+		panic("failed to connect to database")
+	}
+	return db
+}
+
+func migrateDb(db *gorm.DB) {
+	db.AutoMigrate(&NotedItem{})
+}
+
+func parseHighlightsFile() []NotedItem {
 	bytes, err := os.ReadFile(filepath.Join(FolderToCloneTo, ClippingsFileName))
 	if err != nil {
 		log.Fatal(err)
@@ -39,30 +65,34 @@ func main() {
 	log.Printf("total highlights amount is %d", len(highlights))
 
 	data := parseHighlightsData(highlights)
-
-	for i := 0; i < 5; i++ {
-		log.Printf("%+v\n", data[i])
-	}
-
-	// TODO: loadHighlightsToDatabase(db, data)
+	return data
 }
 
-// func loadHighlightsToDatabase(db, data){
-// }
-
-type Noted struct {
-	title  string
-	author string
-
-	type_    string
-	location string
-	time     time.Time
-
-	highlight string
+func loadHighlightsToDatabase(db *gorm.DB, notedItems []NotedItem) {
+	db.Create(&notedItems)
 }
 
-func parseHighlightsData(highlights []string) []Noted {
-	data := make([]Noted, len(highlights))
+type NotedItem struct {
+	gorm.Model
+
+	// todo: make title + time as primary key
+	// todo: make it polymorphic as in sqlalchemy
+
+	// todo: move title and author to separate tables
+	// todo: add index for not duplicating notes
+	Title  string
+	Author string
+
+	// todo: convert to union type
+	Type_    string
+	Location string
+	Time     time.Time
+
+	Highlight string
+}
+
+func parseHighlightsData(highlights []string) []NotedItem {
+	data := make([]NotedItem, len(highlights))
 
 	for i := 0; i < len(highlights); i++ {
 		highlightBlock := highlights[i]
@@ -79,20 +109,19 @@ func parseHighlightsData(highlights []string) []Noted {
 			if len(lines) > 1 {
 				locationData = parseLocationString(lines[1])
 
-				if len(lines) > 4 {
-					highlight = lines[4]
+				if len(lines) > 3 {
+					highlight = lines[3]
 				}
 			}
 		}
 
-		data[i] = Noted{
-			title:    title,
-			author:   author,
-			type_:    locationData.type_,
-			location: locationData.location,
-
-			time:      locationData.time,
-			highlight: highlight,
+		data[i] = NotedItem{
+			Title:     title,
+			Author:    author,
+			Type_:     locationData.type_,
+			Location:  locationData.location,
+			Time:      locationData.time,
+			Highlight: highlight,
 		}
 	}
 
