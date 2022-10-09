@@ -2,8 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestParseTitleAndAuthor(t *testing.T) {
@@ -55,7 +61,7 @@ func TestParseLocationString(t *testing.T) {
 	}
 }
 
-// TODO: test with multiline string that parses full highlighted block
+// todo: test with multiline string that parses full highlighted block
 // func TestParseHighlightBlock(t *testing.T) {
 // 	s := "Meditation for Fidgety Skeptics: A 10% Happier How-to Book (Dan Harris)"
 // 	"- Your Highlight on Location 84-84 | Added on Wednesday, January 26, 2022 11:19:06 PM"
@@ -64,3 +70,64 @@ func TestParseLocationString(t *testing.T) {
 
 // 	log.Println(s)
 // }
+
+// todo: before running tests create test_db, after drop it
+
+func TestImportVocabDb(t *testing.T) {
+	// create small vocal.db
+	file, err := os.CreateTemp("", "vocab_*.db")
+	if err != nil {
+		t.Fail()
+	}
+
+	cmd := exec.Command("sqlite3", file.Name())
+	err = cmd.Run()
+	if err != nil {
+		t.Fail()
+	}
+
+	vocabDbPath := file.Name()
+	vocabDb, err := gorm.Open(sqlite.Open(vocabDbPath), &gorm.Config{})
+	if err != nil {
+		t.Errorf("couldn't create test vocab db")
+	}
+	words_original := []Word{
+		{
+			Word: "endulge",
+		},
+	}
+	vocabDb.AutoMigrate(&Word{})
+	vocabDb.Create(&words_original)
+
+	var words []Word
+	var count int64
+	vocabDb.Find(&words).Count(&count)
+
+	if count != 1 {
+		t.Fail()
+	}
+
+	appDb, err := gorm.Open(postgres.New(postgres.Config{
+		DSN: "host=0.0.0.0 port=5432 user=postgres password=pass dbname=kindle_db_test",
+	}), &gorm.Config{})
+	defer appDb.Exec("DELETE FROM words")
+	if err != nil {
+		t.Fail()
+	}
+	appDb.AutoMigrate(&Word{})
+
+	// call import function
+	importVocabDb(appDb, vocabDb)
+
+	// test result is ok
+	var words_inserted []Word
+	appDb.Find(&words_inserted)
+
+	for i, word_original := range words_original {
+		word_inserted := words_inserted[i]
+
+		if word_inserted.Word != word_original.Word {
+			t.Errorf("word inserted incorrectly. expected %v, got %v", word_inserted.Word, word_original.Word)
+		}
+	}
+}

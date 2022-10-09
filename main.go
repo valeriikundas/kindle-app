@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -23,16 +24,33 @@ const clippingsFilePath string = "/Volumes/Kindle/documents/My Clippings.txt"
 const dictFilePath string = "/Volumes/Kindle/system/vocabulary/vocab.db"
 
 func main() {
-	shouldCloneFile := false
-	if shouldCloneFile {
-		cloneKindleFilesToLocalStorage()
-	}
+	cloneFilesFromKindleIfNeeded()
 
-	db := connectToDb()
-	migrateDb(db)
+	db := setupDb()
 
+	// importHighlights(db)
+
+	vocabDbPath := filepath.Join(FolderToCloneTo, VocabFileName)
+	vocabDb := openVocabDb(vocabDbPath)
+	importVocabDb(db, vocabDb)
+}
+
+// todo: rename all `clone` to `copy`
+func cloneFilesFromKindleIfNeeded() {
+	// todo: check if kindle is connected, then copy
+	cloneKindleFilesToLocalStorage()
+
+}
+
+func importHighlights(db *gorm.DB) {
 	notedItems := parseHighlightsFile()
 	loadHighlightsToDatabase(db, notedItems)
+}
+
+func setupDb() *gorm.DB {
+	db := connectToDb()
+	migrateDb(db)
+	return db
 }
 
 func connectToDb() *gorm.DB {
@@ -41,13 +59,13 @@ func connectToDb() *gorm.DB {
 	}), &gorm.Config{})
 
 	if err != nil {
-		panic("failed to connect to database")
+		log.Fatal("failed to connect to database")
 	}
 	return db
 }
 
 func migrateDb(db *gorm.DB) {
-	db.AutoMigrate(&NotedItem{})
+	db.AutoMigrate(&NotedItem{}, &Word{})
 }
 
 func parseHighlightsFile() []NotedItem {
@@ -260,4 +278,43 @@ func cloneFile(srcPath string, dstName string) {
 		log.Fatal(err)
 	}
 	log.Printf("Has copied %d bytes from %s to %s", bytesWritten, srcPath, dstPath)
+}
+
+type VocabWord struct {
+	Word      string
+	Stem      string
+	Lang      string
+	Category  int
+	Timestamp int
+	Profileid string
+}
+
+type Word struct {
+	gorm.Model
+
+	Word string
+}
+
+func importVocabDb(appDb *gorm.DB, vocabDb *gorm.DB) {
+	var vocabWords []VocabWord
+	vocabDb.Table("WORDS").Unscoped().Find(&vocabWords)
+
+	words := make([]Word, len(vocabWords))
+	for i, val := range vocabWords {
+		words[i] = Word{
+			Word: val.Word,
+		}
+	}
+
+	if result := appDb.Table("words").Create(&words); result.Error != nil {
+		log.Fatal(result.Error)
+	}
+}
+
+func openVocabDb(vocabDbPath string) *gorm.DB {
+	vocabDb, err := gorm.Open(sqlite.Open(vocabDbPath), &gorm.Config{})
+	if err != nil {
+		log.Fatal("error: couldn't open vocab db")
+	}
+	return vocabDb
 }
