@@ -10,7 +10,12 @@ import (
 // todo: rename all `clone` to `copy`
 func cloneFilesFromKindleIfNeeded() {
 	// todo: check if kindle is connected, then copy
-	cloneKindleFilesToLocalStorage()
+
+	shouldClone := false
+
+	if shouldClone {
+		cloneKindleFilesToLocalStorage()
+	}
 
 }
 

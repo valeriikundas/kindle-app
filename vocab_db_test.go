@@ -30,9 +30,9 @@ func TestAnkiSync(t *testing.T) {
 	// act
 	cardsToUpload := []AnkiCard{
 		{
-			deckName:  deckName,
-			modelName: "Basic",
-			fields: AnkiCardFields{
+			DeckName:  deckName,
+			ModelName: "Basic",
+			Fields: AnkiCardFields{
 				Front: "test front",
 				Back:  "test back",
 			},

@@ -114,10 +114,11 @@ func TestImportVocabDb(t *testing.T) {
 	if err != nil {
 		t.Fail()
 	}
+	// fixme: no Words table, to be deleted
 	appDb.AutoMigrate(&Word{})
 
 	// call import function
-	importVocabDbToAppDb(appDb, vocabDb)
+	getWordsFromVocabDb(vocabDb)
 
 	// test result is ok
 	var words_inserted []Word

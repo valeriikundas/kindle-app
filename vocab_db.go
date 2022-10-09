@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/csv"
 	"log"
+	"os"
 	"path/filepath"
 
 	"gorm.io/driver/sqlite"
@@ -18,8 +20,6 @@ type VocabWord struct {
 }
 
 type Word struct {
-	gorm.Model
-
 	Word string
 }
 
@@ -31,24 +31,56 @@ func openVocabDb(vocabDbPath string) *gorm.DB {
 	return vocabDb
 }
 
-func ImportVocabDb(db *gorm.DB) {
+func ImportVocabDb() []VocabWord {
 	vocabDbPath := filepath.Join(FolderToCloneTo, VocabFileName)
 	vocabDb := openVocabDb(vocabDbPath)
-	importVocabDbToAppDb(db, vocabDb)
+	words := getWordsFromVocabDb(vocabDb)
+	return words
 }
 
-func importVocabDbToAppDb(appDb *gorm.DB, vocabDb *gorm.DB) {
+func getWordsFromVocabDb(vocabDb *gorm.DB) []VocabWord {
 	var vocabWords []VocabWord
 	vocabDb.Table("WORDS").Unscoped().Find(&vocabWords)
+	return vocabWords
+}
 
-	words := make([]Word, len(vocabWords))
-	for i, val := range vocabWords {
-		words[i] = Word{
-			Word: val.Word,
+// todo: delete db, don't store vocab in my db
+func GetAllCards(db *gorm.DB, deckName string) []AnkiCard {
+	var words []Word
+	tx := db.Table("words").Find(&words)
+	if tx.Error != nil {
+		log.Fatal(tx.Error)
+	}
+
+	cards := make([]AnkiCard, len(words))
+	// todo: extract modelName to consts
+	for i, word := range words {
+		cards[i] = AnkiCard{
+			DeckName:  deckName,
+			ModelName: "Basic",
+			Fields: AnkiCardFields{
+				Front: word.Word,
+				Back:  "todo:",
+			},
 		}
 	}
 
-	if result := appDb.Table("words").Create(&words); result.Error != nil {
-		log.Fatal(result.Error)
+	return cards
+}
+
+func saveWordsToCsvFile(words []VocabWord) {
+	csvFile, err := os.Create("words.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer csvFile.Close()
+
+	csvWriter := csv.NewWriter(csvFile)
+	defer csvWriter.Flush()
+
+	for _, val := range words {
+
+		record := []string{val.Word, val.Stem}
+		csvWriter.Write(record)
 	}
 }

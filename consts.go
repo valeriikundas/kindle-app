@@ -7,3 +7,6 @@ const dictFilePath string = "/Volumes/Kindle/system/vocabulary/vocab.db"
 const FolderToCloneTo string = "files"
 const ClippingsFileName string = "clippings.txt"
 const VocabFileName string = "vocab.db"
+
+const AnkiServerUrl = "http://localhost:8765/"
+const AnkiDeckName = "Kindle Vocab - DEV"
