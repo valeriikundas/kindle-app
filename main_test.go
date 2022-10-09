@@ -117,7 +117,7 @@ func TestImportVocabDb(t *testing.T) {
 	appDb.AutoMigrate(&Word{})
 
 	// call import function
-	importVocabDb(appDb, vocabDb)
+	importVocabDbToAppDb(appDb, vocabDb)
 
 	// test result is ok
 	var words_inserted []Word
